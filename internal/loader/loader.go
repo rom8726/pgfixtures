@@ -43,8 +43,15 @@ func (l *Loader) Load() error {
 		return err
 	}
 
+	tx, err := l.DB.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+
 	if l.Config.Truncate {
-		if err := l.truncateTables(sorted); err != nil {
+		if err := l.truncateTables(tx, sorted); err != nil {
+			_ = tx.Rollback()
+
 			return err
 		}
 	}
@@ -54,22 +61,26 @@ func (l *Loader) Load() error {
 
 		records := fixtures[table]
 		for _, row := range records {
-			if err := l.insertRow(table, row); err != nil {
+			if err := l.insertRow(tx, table, row); err != nil {
+				_ = tx.Rollback()
+
 				return fmt.Errorf("insert into %q: %w", table, err)
 			}
 		}
 	}
 
 	if l.Config.ResetSeq {
-		if err := l.resetSequences(sorted); err != nil {
+		if err := l.resetSequences(tx, sorted); err != nil {
+			_ = tx.Rollback()
+
 			return err
 		}
 	}
 
-	return nil
+	return tx.Commit()
 }
 
-func (l *Loader) truncateTables(tables []string) error {
+func (l *Loader) truncateTables(tx *sql.Tx, tables []string) error {
 	query := "TRUNCATE " + strings.Join(tables, ", ") + " RESTART IDENTITY CASCADE"
 	if l.Config.DryRun {
 		log.Println("[dry-run]", query)
@@ -77,19 +88,19 @@ func (l *Loader) truncateTables(tables []string) error {
 		return nil
 	}
 
-	_, err := l.DB.Exec(query)
+	_, err := tx.Exec(query)
 
 	return err
 }
 
-func (l *Loader) insertRow(table string, row map[string]any) error {
+func (l *Loader) insertRow(tx *sql.Tx, table string, row map[string]any) error {
 	var cols []string
 	var vals []any
 	var ph []string
 
 	for col, val := range row {
 		if expr, ok := parser.IsEval(val); ok {
-			if err := l.DB.QueryRow(expr).Scan(&val); err != nil {
+			if err := tx.QueryRow(expr).Scan(&val); err != nil {
 				return fmt.Errorf("eval %q: %w", expr, err)
 			}
 		}
@@ -111,12 +122,12 @@ func (l *Loader) insertRow(table string, row map[string]any) error {
 		return nil
 	}
 
-	_, err := l.DB.Exec(query, vals...)
+	_, err := tx.Exec(query, vals...)
 
 	return err
 }
 
-func (l *Loader) resetSequences(tables []string) error {
+func (l *Loader) resetSequences(tx *sql.Tx, tables []string) error {
 	for _, table := range tables {
 		query := fmt.Sprintf(`
 DO $$
@@ -139,7 +150,7 @@ END$$;
 			continue
 		}
 
-		if _, err := l.DB.Exec(query); err != nil {
+		if _, err := tx.Exec(query); err != nil {
 			return err
 		}
 	}
