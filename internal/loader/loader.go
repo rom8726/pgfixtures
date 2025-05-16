@@ -1,6 +1,7 @@
 package loader
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -22,7 +23,7 @@ type Loader struct {
 	Config LoaderConfig
 }
 
-func (l *Loader) Load() error {
+func (l *Loader) Load(ctx context.Context) error {
 	fixtures, err := parser.ParseFile(l.Config.FilePath)
 	if err != nil {
 		return err
@@ -33,7 +34,7 @@ func (l *Loader) Load() error {
 		tables = append(tables, t)
 	}
 
-	deps, err := db.GetDependencyGraph(l.DB)
+	deps, err := db.GetDependencyGraph(ctx, l.DB)
 	if err != nil {
 		return err
 	}
@@ -49,7 +50,7 @@ func (l *Loader) Load() error {
 	}
 
 	if l.Config.Truncate {
-		if err := l.truncateTables(tx, sorted); err != nil {
+		if err := l.truncateTables(ctx, tx, sorted); err != nil {
 			_ = tx.Rollback()
 
 			return err
@@ -61,7 +62,7 @@ func (l *Loader) Load() error {
 
 		records := fixtures[table]
 		for _, row := range records {
-			if err := l.insertRow(tx, table, row); err != nil {
+			if err := l.insertRow(ctx, tx, table, row); err != nil {
 				_ = tx.Rollback()
 
 				return fmt.Errorf("insert into %q: %w", table, err)
@@ -70,7 +71,7 @@ func (l *Loader) Load() error {
 	}
 
 	if l.Config.ResetSeq {
-		if err := l.resetSequences(tx, sorted); err != nil {
+		if err := l.resetSequences(ctx, tx, sorted); err != nil {
 			_ = tx.Rollback()
 
 			return err
@@ -80,7 +81,7 @@ func (l *Loader) Load() error {
 	return tx.Commit()
 }
 
-func (l *Loader) truncateTables(tx *sql.Tx, tables []string) error {
+func (l *Loader) truncateTables(ctx context.Context, tx *sql.Tx, tables []string) error {
 	query := "TRUNCATE " + strings.Join(tables, ", ") + " RESTART IDENTITY CASCADE"
 	if l.Config.DryRun {
 		log.Println("[dry-run]", query)
@@ -88,19 +89,19 @@ func (l *Loader) truncateTables(tx *sql.Tx, tables []string) error {
 		return nil
 	}
 
-	_, err := tx.Exec(query)
+	_, err := tx.ExecContext(ctx, query)
 
 	return err
 }
 
-func (l *Loader) insertRow(tx *sql.Tx, table string, row map[string]any) error {
+func (l *Loader) insertRow(ctx context.Context, tx *sql.Tx, table string, row map[string]any) error {
 	var cols []string
 	var vals []any
 	var ph []string
 
 	for col, val := range row {
 		if expr, ok := parser.IsEval(val); ok {
-			if err := tx.QueryRow(expr).Scan(&val); err != nil {
+			if err := tx.QueryRowContext(ctx, expr).Scan(&val); err != nil {
 				return fmt.Errorf("eval %q: %w", expr, err)
 			}
 		}
@@ -122,12 +123,12 @@ func (l *Loader) insertRow(tx *sql.Tx, table string, row map[string]any) error {
 		return nil
 	}
 
-	_, err := tx.Exec(query, vals...)
+	_, err := tx.ExecContext(ctx, query, vals...)
 
 	return err
 }
 
-func (l *Loader) resetSequences(tx *sql.Tx, tables []string) error {
+func (l *Loader) resetSequences(ctx context.Context, tx *sql.Tx, tables []string) error {
 	for _, table := range tables {
 		query := fmt.Sprintf(`
 DO $$
@@ -150,7 +151,7 @@ END$$;
 			continue
 		}
 
-		if _, err := tx.Exec(query); err != nil {
+		if _, err := tx.ExecContext(ctx, query); err != nil {
 			return err
 		}
 	}

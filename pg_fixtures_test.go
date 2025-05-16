@@ -3,6 +3,7 @@
 package pgfixtures
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"testing"
@@ -61,7 +62,7 @@ func TestLoad(t *testing.T) {
 	require.NoError(t, err, "apply migrations")
 
 	// load fixtures
-	require.NoError(t, Load(cfg), "load fixtures")
+	require.NoError(t, Load(context.Background(), cfg), "load fixtures")
 
 	// check users
 	rows, err := db.Query("SELECT id, name, last_login_at, created_at FROM users ORDER BY id")

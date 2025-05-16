@@ -37,7 +37,7 @@ func init() {
 	rootCmd.AddCommand(cmd)
 }
 
-func runLoad(context.Context) error {
+func runLoad(ctx context.Context) error {
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return fmt.Errorf("connect to DB: %w", err)
@@ -54,7 +54,7 @@ func runLoad(context.Context) error {
 		},
 	}
 
-	if err := l.Load(); err != nil {
+	if err := l.Load(ctx); err != nil {
 		return fmt.Errorf("load fixtures: %w", err)
 	}
 

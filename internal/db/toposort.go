@@ -1,11 +1,12 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 )
 
-func GetDependencyGraph(db *sql.DB) (map[string][]string, error) {
+func GetDependencyGraph(ctx context.Context, db *sql.DB) (map[string][]string, error) {
 	query := `
 SELECT
     tc.table_schema || '.' || tc.table_name AS child,
@@ -21,7 +22,7 @@ FROM
 WHERE
     tc.constraint_type = 'FOREIGN KEY'
 `
-	rows, err := db.Query(query)
+	rows, err := db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("query dependencies: %w", err)
 	}

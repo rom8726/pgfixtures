@@ -1,13 +1,14 @@
 package pgfixtures
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
 	"github.com/rom8726/pgfixtures/internal/loader"
 )
 
-func Load(config *Config) error {
+func Load(ctx context.Context, config *Config) error {
 	if err := config.Validate(); err != nil {
 		return fmt.Errorf("validate config: %w", err)
 	}
@@ -28,7 +29,7 @@ func Load(config *Config) error {
 		},
 	}
 
-	if err := l.Load(); err != nil {
+	if err := l.Load(ctx); err != nil {
 		return fmt.Errorf("load fixtures: %w", err)
 	}
 
