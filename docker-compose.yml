@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  pgfixtures-postgresql:
+    image: postgres:16
+    container_name: pgfixtures-postgresql
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: db
+      PGDATA: /var/lib/postgresql/data/main
+    ports:
+      - "5432:5432"
