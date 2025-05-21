@@ -129,7 +129,12 @@ func (l *Loader) insertRow(ctx context.Context, tx *sql.Tx, table string, row ma
 }
 
 func (l *Loader) resetSequences(ctx context.Context, tx *sql.Tx, tables []string) error {
-	for _, table := range tables {
+	for _, schemaTable := range tables {
+		parts := strings.Split(schemaTable, ".")
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid table name: %q", schemaTable)
+		}
+
 		query := fmt.Sprintf(`
 DO $$
 DECLARE
@@ -137,13 +142,13 @@ DECLARE
 BEGIN
     FOR r IN
         SELECT column_default, column_name FROM information_schema.columns
-        WHERE table_name = '%s' AND column_default LIKE 'nextval%%'
+        WHERE table_schema = '%s' AND table_name = '%s' AND column_default LIKE 'nextval%%'
     LOOP
         EXECUTE format('SELECT setval(pg_get_serial_sequence(''%s'', ''%s''), COALESCE(MAX(%s), 0)+1) FROM %s',
             r.column_name, r.column_name, r.column_name, '%s');
     END LOOP;
 END$$;
-`, table, table, "%s", "%s", table, table)
+`, parts[0], parts[1], schemaTable, "%s", "%s", schemaTable, schemaTable)
 
 		if l.Config.DryRun {
 			log.Println("[dry-run]", query)

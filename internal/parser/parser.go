@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -18,12 +19,18 @@ func ParseFile(path string) (Fixtures, error) {
 		return nil, fmt.Errorf("read file: %w", err)
 	}
 
-	var f Fixtures
-	if err := yaml.Unmarshal(data, &f); err != nil {
+	var fixtures Fixtures
+	if err := yaml.Unmarshal(data, &fixtures); err != nil {
 		return nil, fmt.Errorf("unmarshal yaml: %w", err)
 	}
 
-	return f, nil
+	for table := range fixtures {
+		if len(strings.Split(table, ".")) != 2 {
+			return nil, fmt.Errorf("invalid fixture name (without schema): %q", table)
+		}
+	}
+
+	return fixtures, nil
 }
 
 func IsEval(val any) (string, bool) {
