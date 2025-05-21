@@ -14,6 +14,8 @@ It's useful for setting up test environments in integration tests.
 - Dry-run mode to preview planned changes
 - Support for foreign keys and proper loading order
 
+⚠️ **NOTE: Please, point table schema for each table in YAML fixture for correct toposort (for example, public.test)**
+
 ## Installation
 
 ```bash

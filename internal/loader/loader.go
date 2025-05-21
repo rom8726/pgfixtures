@@ -57,6 +57,14 @@ func (l *Loader) Load(ctx context.Context) error {
 		}
 	}
 
+	if l.Config.ResetSeq {
+		if err := l.resetSequences(ctx, tx, sorted); err != nil {
+			_ = tx.Rollback()
+
+			return err
+		}
+	}
+
 	for i := len(sorted) - 1; i >= 0; i-- {
 		table := sorted[i]
 
@@ -67,14 +75,6 @@ func (l *Loader) Load(ctx context.Context) error {
 
 				return fmt.Errorf("insert into %q: %w", table, err)
 			}
-		}
-	}
-
-	if l.Config.ResetSeq {
-		if err := l.resetSequences(ctx, tx, sorted); err != nil {
-			_ = tx.Rollback()
-
-			return err
 		}
 	}
 
