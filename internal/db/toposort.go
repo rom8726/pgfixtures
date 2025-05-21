@@ -44,9 +44,9 @@ WHERE
 func TopoSort(graph map[string][]string, inputTables []string) ([]string, error) {
 	visited := make(map[string]bool)
 	tempMark := make(map[string]bool)
-	var order []string
+	order := make([]string, 0, len(graph))
 
-	include := map[string]bool{}
+	include := make(map[string]bool, len(inputTables))
 	for _, t := range inputTables {
 		include[t] = true
 	}
@@ -71,7 +71,7 @@ func TopoSort(graph map[string][]string, inputTables []string) ([]string, error)
 		visited[node] = true
 
 		if include[node] || isDependent {
-			order = append([]string{node}, order...)
+			order = append(order, node)
 		}
 
 		return nil
@@ -81,6 +81,10 @@ func TopoSort(graph map[string][]string, inputTables []string) ([]string, error)
 		if err := visit(node, false); err != nil {
 			return nil, err
 		}
+	}
+
+	for i, j := 0, len(order)-1; i < j; i, j = i+1, j-1 {
+		order[i], order[j] = order[j], order[i]
 	}
 
 	return order, nil
