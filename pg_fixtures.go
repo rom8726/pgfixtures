@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 
+	_ "github.com/lib/pq"
+
 	"github.com/rom8726/pgfixtures/internal/loader"
 )
 
