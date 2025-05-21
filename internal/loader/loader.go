@@ -57,14 +57,6 @@ func (l *Loader) Load(ctx context.Context) error {
 		}
 	}
 
-	if l.Config.ResetSeq {
-		if err := l.resetSequences(ctx, tx, sorted); err != nil {
-			_ = tx.Rollback()
-
-			return err
-		}
-	}
-
 	for i := len(sorted) - 1; i >= 0; i-- {
 		table := sorted[i]
 
@@ -75,6 +67,14 @@ func (l *Loader) Load(ctx context.Context) error {
 
 				return fmt.Errorf("insert into %q: %w", table, err)
 			}
+		}
+	}
+
+	if l.Config.ResetSeq {
+		if err := l.resetSequences(ctx, tx, sorted); err != nil {
+			_ = tx.Rollback()
+
+			return err
 		}
 	}
 
@@ -139,7 +139,7 @@ BEGIN
         SELECT column_default, column_name FROM information_schema.columns
         WHERE table_name = '%s' AND column_default LIKE 'nextval%%'
     LOOP
-        EXECUTE format('SELECT setval(pg_get_serial_sequence(''%s'', ''%s''), COALESCE(MAX(%s), 0)) FROM %s',
+        EXECUTE format('SELECT setval(pg_get_serial_sequence(''%s'', ''%s''), COALESCE(MAX(%s), 0)+1) FROM %s',
             r.column_name, r.column_name, r.column_name, '%s');
     END LOOP;
 END$$;
