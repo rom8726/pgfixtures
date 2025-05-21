@@ -144,7 +144,7 @@ BEGIN
         SELECT column_default, column_name FROM information_schema.columns
         WHERE table_schema = '%s' AND table_name = '%s' AND column_default LIKE 'nextval%%'
     LOOP
-        EXECUTE format('SELECT setval(pg_get_serial_sequence(''%s'', ''%s''), COALESCE(MAX(%s), 0)+1) FROM %s',
+        EXECUTE format('SELECT setval(pg_get_serial_sequence(''%s'', ''%s''), COALESCE(MAX(%s), 0)) FROM %s',
             r.column_name, r.column_name, r.column_name, '%s');
     END LOOP;
 END$$;
