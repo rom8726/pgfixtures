@@ -70,6 +70,21 @@ func TestTopoSort(t *testing.T) {
 			expected:  nil,
 			expectErr: true,
 		},
+		{
+			name: "example",
+			graph: map[string][]string{
+				"orders":          {"users"},
+				"orders2products": {"orders", "products"},
+			},
+			input: []string{"products", "orders2products", "users", "orders"},
+			expected: []string{
+				"orders2products",
+				"orders",
+				"users",
+				"products",
+			},
+			expectErr: false,
+		},
 	}
 
 	for _, tt := range tests {

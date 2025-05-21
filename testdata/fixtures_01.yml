@@ -1,4 +1,4 @@
-users:
+public.users:
   - id: 1
     name: User1
     last_login_at: $eval(SELECT NOW())
@@ -8,7 +8,7 @@ users:
     last_login_at: $eval(SELECT NOW())
     created_at: $eval(SELECT NOW() - INTERVAL '2 day')
 
-orders:
+public.orders:
   - id: 1
     user_id: 1
     created_at: $eval(SELECT NOW())
@@ -16,7 +16,7 @@ orders:
     user_id: 2
     created_at: $eval(SELECT NOW())
 
-products:
+public.products:
   - id: 1
     name: Milk
     price: 2.50
@@ -27,7 +27,7 @@ products:
     name: Phone
     price: 399.99
 
-orders2products:
+public.orders2products:
   - order_id: 1
     product_id: 2
     quantity: 2
