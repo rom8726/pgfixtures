@@ -15,6 +15,7 @@ jobs:
         env:
           DOCKER_TLS_CERTDIR: ""
         options: >-
+          --privileged
           --health-cmd "docker info"
           --health-interval 5s
           --health-timeout 5s
@@ -37,4 +38,4 @@ jobs:
           cache: true
 
       - name: Run tests
-        run: go test ./...
+        run: go test -tags=integration ./...
