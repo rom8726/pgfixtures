@@ -58,7 +58,7 @@ err := pgfixtures.Load(cfg)
 
 Fixtures are described in YAML format where top-level keys are table names:
 ```yaml
-users:
+public.users:
   - id: 1
     name: "John Doe"
     created_at: $eval(SELECT NOW())
@@ -66,7 +66,7 @@ users:
     name: "Jane Doe"
     created_at: $eval(SELECT NOW() - INTERVAL '1 day')
 
-orders:
+public.orders:
   - id: 1
     user_id: 1
     total: 100.50
@@ -76,7 +76,7 @@ orders:
 
 Use `$eval()` construction for generating dynamic values. You can write SQL queries inside:
 ```yaml
-users:
+public.users:
   - id: 1
     created_at: $eval(SELECT NOW())
     updated_at: $eval(SELECT NOW() + INTERVAL '1 hour')
