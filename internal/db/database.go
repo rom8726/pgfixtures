@@ -3,14 +3,10 @@ package db
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"log"
 	"strings"
 )
-
-// ErrUnsupportedDatabaseType is returned when an unsupported database type is specified
-var ErrUnsupportedDatabaseType = errors.New("unsupported database type")
 
 // Database defines the interface for database-specific operations
 type Database interface {
@@ -29,16 +25,6 @@ type Database interface {
 	// Placeholder returns the parameter placeholder for the given index
 	Placeholder(index int) string
 }
-
-// DatabaseType represents the type of database
-type DatabaseType string
-
-const (
-	// PostgreSQL database type
-	PostgreSQL DatabaseType = "postgres"
-	// MySQL database type
-	MySQL DatabaseType = "mysql"
-)
 
 // PostgresDatabase implements the Database interface for PostgreSQL
 type PostgresDatabase struct{}
@@ -313,16 +299,4 @@ WHERE TABLE_SCHEMA = '%s'
 // Placeholder implements Database.Placeholder for MySQL
 func (m *MySQLDatabase) Placeholder(index int) string {
 	return "?"
-}
-
-// NewDatabase creates a new Database implementation based on the given type
-func NewDatabase(dbType DatabaseType) (Database, error) {
-	switch dbType {
-	case PostgreSQL:
-		return &PostgresDatabase{}, nil
-	case MySQL:
-		return &MySQLDatabase{}, nil
-	default:
-		return nil, ErrUnsupportedDatabaseType
-	}
 }

@@ -3,6 +3,7 @@ package pgfixtures
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	_ "github.com/go-sql-driver/mysql" // MySQL driver
@@ -12,6 +13,9 @@ import (
 	"github.com/rom8726/pgfixtures/internal/loader"
 )
 
+// ErrUnsupportedDatabaseType is returned when an unsupported database type is specified
+var ErrUnsupportedDatabaseType = errors.New("unsupported database type")
+
 func Load(ctx context.Context, config *Config) error {
 	if err := config.Validate(); err != nil {
 		return fmt.Errorf("validate config: %w", err)
@@ -20,9 +24,9 @@ func Load(ctx context.Context, config *Config) error {
 	// Get the appropriate database driver name
 	var driverName string
 	switch config.DatabaseType {
-	case db.PostgreSQL:
+	case PostgreSQL:
 		driverName = "postgres"
-	case db.MySQL:
+	case MySQL:
 		driverName = "mysql"
 	default:
 		return fmt.Errorf("unsupported database type: %s", config.DatabaseType)
@@ -36,7 +40,7 @@ func Load(ctx context.Context, config *Config) error {
 	defer database.Close()
 
 	// Create database implementation
-	dbImpl, err := db.NewDatabase(config.DatabaseType)
+	dbImpl, err := NewDatabase(config.DatabaseType)
 	if err != nil {
 		return fmt.Errorf("create database implementation: %w", err)
 	}
@@ -57,4 +61,16 @@ func Load(ctx context.Context, config *Config) error {
 	}
 
 	return nil
+}
+
+// NewDatabase creates a new Database implementation based on the given type
+func NewDatabase(dbType DatabaseType) (db.Database, error) {
+	switch dbType {
+	case PostgreSQL:
+		return &db.PostgresDatabase{}, nil
+	case MySQL:
+		return &db.MySQLDatabase{}, nil
+	default:
+		return nil, ErrUnsupportedDatabaseType
+	}
 }

@@ -11,6 +11,7 @@ import (
 	_ "github.com/lib/pq"              // PostgreSQL driver
 	"github.com/spf13/cobra"
 
+	"github.com/rom8726/pgfixtures"
 	"github.com/rom8726/pgfixtures/internal/db"
 	"github.com/rom8726/pgfixtures/internal/loader"
 )
@@ -44,12 +45,12 @@ func init() {
 
 func runLoad(ctx context.Context) error {
 	// Convert string database type to DatabaseType
-	var databaseType db.DatabaseType
+	var databaseType pgfixtures.DatabaseType
 	switch strings.ToLower(dbType) {
 	case "postgres", "postgresql":
-		databaseType = db.PostgreSQL
+		databaseType = pgfixtures.PostgreSQL
 	case "mysql":
-		databaseType = db.MySQL
+		databaseType = pgfixtures.MySQL
 	default:
 		return fmt.Errorf("unsupported database type: %s (supported types: postgres, mysql)", dbType)
 	}
@@ -63,9 +64,9 @@ func runLoad(ctx context.Context) error {
 	// Get the appropriate database driver name
 	var driverName string
 	switch databaseType {
-	case db.PostgreSQL:
+	case pgfixtures.PostgreSQL:
 		driverName = "postgres"
-	case db.MySQL:
+	case pgfixtures.MySQL:
 		driverName = "mysql"
 	}
 

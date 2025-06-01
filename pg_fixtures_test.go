@@ -68,11 +68,12 @@ func TestLoad(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := &Config{
-		FilePath: "testdata/fixtures_01.yml",
-		ConnStr:  connStr,
-		Truncate: true,
-		ResetSeq: true,
-		DryRun:   false,
+		FilePath:     "testdata/fixtures_01.yml",
+		ConnStr:      connStr,
+		DatabaseType: PostgreSQL,
+		Truncate:     true,
+		ResetSeq:     true,
+		DryRun:       false,
 	}
 
 	// read migrations
