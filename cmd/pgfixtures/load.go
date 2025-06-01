@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rom8726/pgfixtures"
-	"github.com/rom8726/pgfixtures/internal/db"
 	"github.com/rom8726/pgfixtures/internal/loader"
 )
 
@@ -56,7 +55,7 @@ func runLoad(ctx context.Context) error {
 	}
 
 	// Create database implementation
-	database, err := db.NewDatabase(databaseType)
+	database, err := pgfixtures.NewDatabase(databaseType)
 	if err != nil {
 		return fmt.Errorf("create database implementation: %w", err)
 	}
