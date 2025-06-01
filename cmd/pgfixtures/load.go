@@ -5,16 +5,20 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strings"
 
-	_ "github.com/lib/pq"
+	_ "github.com/go-sql-driver/mysql" // MySQL driver
+	_ "github.com/lib/pq"              // PostgreSQL driver
 	"github.com/spf13/cobra"
 
+	"github.com/rom8726/pgfixtures/internal/db"
 	"github.com/rom8726/pgfixtures/internal/loader"
 )
 
 var (
 	file     string
 	connStr  string
+	dbType   string
 	truncate bool
 	resetSeq bool
 	dryRun   bool
@@ -23,12 +27,13 @@ var (
 func init() {
 	cmd := &cobra.Command{
 		Use:   "load",
-		Short: "Load fixtures into PostgreSQL",
+		Short: "Load fixtures into a database",
 		RunE:  func(cmd *cobra.Command, args []string) error { return runLoad(cmd.Context()) },
 	}
 
 	cmd.Flags().StringVarP(&file, "file", "f", "fixtures.yml", "Path to YAML fixture file")
-	cmd.Flags().StringVar(&connStr, "db", "", "PostgreSQL connection string (required)")
+	cmd.Flags().StringVar(&connStr, "db", "", "Database connection string (required)")
+	cmd.Flags().StringVar(&dbType, "db-type", "postgres", "Database type (postgres or mysql)")
 	cmd.Flags().BoolVar(&truncate, "truncate", true, "Truncate tables before loading")
 	cmd.Flags().BoolVar(&resetSeq, "reset-seq", true, "Reset sequences after loading")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print actions without executing")
@@ -38,14 +43,43 @@ func init() {
 }
 
 func runLoad(ctx context.Context) error {
-	db, err := sql.Open("postgres", connStr)
+	// Convert string database type to DatabaseType
+	var databaseType db.DatabaseType
+	switch strings.ToLower(dbType) {
+	case "postgres", "postgresql":
+		databaseType = db.PostgreSQL
+	case "mysql":
+		databaseType = db.MySQL
+	default:
+		return fmt.Errorf("unsupported database type: %s (supported types: postgres, mysql)", dbType)
+	}
+
+	// Create database implementation
+	database, err := db.NewDatabase(databaseType)
+	if err != nil {
+		return fmt.Errorf("create database implementation: %w", err)
+	}
+
+	// Get the appropriate database driver name
+	var driverName string
+	switch databaseType {
+	case db.PostgreSQL:
+		driverName = "postgres"
+	case db.MySQL:
+		driverName = "mysql"
+	}
+
+	// Open database connection
+	sqlDB, err := sql.Open(driverName, connStr)
 	if err != nil {
 		return fmt.Errorf("connect to DB: %w", err)
 	}
-	defer db.Close()
+	defer sqlDB.Close()
 
+	// Create and run loader
 	l := loader.Loader{
-		DB: db,
+		DB:       sqlDB,
+		Database: database,
 		Config: loader.LoaderConfig{
 			FilePath: file,
 			Truncate: truncate,

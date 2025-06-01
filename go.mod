@@ -3,6 +3,7 @@ module github.com/rom8726/pgfixtures
 go 1.24
 
 require (
+	github.com/go-sql-driver/mysql v1.8.0
 	github.com/lib/pq v1.10.9
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0

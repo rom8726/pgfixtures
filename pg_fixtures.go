@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"fmt"
 
-	_ "github.com/lib/pq"
+	_ "github.com/go-sql-driver/mysql" // MySQL driver
+	_ "github.com/lib/pq"              // PostgreSQL driver
 
+	"github.com/rom8726/pgfixtures/internal/db"
 	"github.com/rom8726/pgfixtures/internal/loader"
 )
 
@@ -15,14 +17,33 @@ func Load(ctx context.Context, config *Config) error {
 		return fmt.Errorf("validate config: %w", err)
 	}
 
-	db, err := sql.Open("postgres", config.ConnStr)
+	// Get the appropriate database driver name
+	var driverName string
+	switch config.DatabaseType {
+	case db.PostgreSQL:
+		driverName = "postgres"
+	case db.MySQL:
+		driverName = "mysql"
+	default:
+		return fmt.Errorf("unsupported database type: %s", config.DatabaseType)
+	}
+
+	// Open database connection
+	database, err := sql.Open(driverName, config.ConnStr)
 	if err != nil {
 		return fmt.Errorf("connect to DB: %w", err)
 	}
-	defer db.Close()
+	defer database.Close()
+
+	// Create database implementation
+	dbImpl, err := db.NewDatabase(config.DatabaseType)
+	if err != nil {
+		return fmt.Errorf("create database implementation: %w", err)
+	}
 
 	l := loader.Loader{
-		DB: db,
+		DB:       database,
+		Database: dbImpl,
 		Config: loader.LoaderConfig{
 			FilePath: config.FilePath,
 			Truncate: config.Truncate,
