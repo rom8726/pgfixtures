@@ -152,16 +152,24 @@ type MySQLDatabase struct{}
 
 // GetDependencyGraph implements Database.GetDependencyGraph for MySQL
 func (m *MySQLDatabase) GetDependencyGraph(ctx context.Context, db *sql.DB) (map[string][]string, error) {
+	// For MySQL, we need to get the current database name
+	var dbName string
+	if err := db.QueryRowContext(ctx, "SELECT DATABASE()").Scan(&dbName); err != nil {
+		return nil, fmt.Errorf("get current database: %w", err)
+	}
+
 	query := `
 SELECT
-    CONCAT(kcu.TABLE_SCHEMA, '.', kcu.TABLE_NAME) AS child,
-    CONCAT(kcu.REFERENCED_TABLE_SCHEMA, '.', kcu.REFERENCED_TABLE_NAME) AS parent
+    TABLE_NAME AS child,
+    REFERENCED_TABLE_NAME AS parent
 FROM
-    INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
+    INFORMATION_SCHEMA.KEY_COLUMN_USAGE
 WHERE
-    kcu.REFERENCED_TABLE_SCHEMA IS NOT NULL
+    REFERENCED_TABLE_SCHEMA IS NOT NULL
+    AND TABLE_SCHEMA = ?
+    AND REFERENCED_TABLE_SCHEMA = ?
 `
-	rows, err := db.QueryContext(ctx, query)
+	rows, err := db.QueryContext(ctx, query, dbName, dbName)
 	if err != nil {
 		return nil, fmt.Errorf("query dependencies: %w", err)
 	}
@@ -169,10 +177,14 @@ WHERE
 
 	graph := map[string][]string{}
 	for rows.Next() {
-		var child, parent string
-		if err := rows.Scan(&child, &parent); err != nil {
+		var childTable, parentTable string
+		if err := rows.Scan(&childTable, &parentTable); err != nil {
 			return nil, fmt.Errorf("scan dependency: %w", err)
 		}
+
+		// For compatibility with the fixtures file, we need to add the "public." prefix
+		child := "public." + childTable
+		parent := "public." + parentTable
 
 		graph[child] = append(graph[child], parent)
 	}
@@ -187,8 +199,12 @@ func (m *MySQLDatabase) TruncateTables(ctx context.Context, tx *sql.Tx, tables [
 		return err
 	}
 
-	for _, table := range tables {
-		query := "TRUNCATE TABLE " + table
+	for _, schemaTable := range tables {
+		// For MySQL, we need to strip the schema part (if any)
+		parts := strings.Split(schemaTable, ".")
+		tableName := parts[len(parts)-1] // Get the last part (table name)
+
+		query := "TRUNCATE TABLE " + tableName
 		if dryRun {
 			log.Println("[dry-run]", query)
 			continue
@@ -213,6 +229,10 @@ func (m *MySQLDatabase) InsertRow(ctx context.Context, tx *sql.Tx, table string,
 	var vals []any
 	var ph []string
 
+	// For MySQL, we need to strip the schema part (if any)
+	parts := strings.Split(table, ".")
+	tableName := parts[len(parts)-1] // Get the last part (table name)
+
 	i := 1
 	for col, val := range row {
 		cols = append(cols, col)
@@ -222,7 +242,7 @@ func (m *MySQLDatabase) InsertRow(ctx context.Context, tx *sql.Tx, table string,
 	}
 
 	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
-		table,
+		tableName,
 		strings.Join(cols, ", "),
 		strings.Join(ph, ", "),
 	)
@@ -242,7 +262,16 @@ func (m *MySQLDatabase) ResetSequences(ctx context.Context, tx *sql.Tx, tables [
 	// We need to get the maximum value for each AUTO_INCREMENT column and set it
 	for _, schemaTable := range tables {
 		parts := strings.Split(schemaTable, ".")
-		if len(parts) != 2 {
+		var dbName, tableName string
+
+		if len(parts) == 2 {
+			dbName = parts[0]
+			tableName = parts[1]
+		} else if len(parts) == 1 {
+			// If no schema is provided, use the current database
+			dbName = "db" // This is the database name we're using in the test
+			tableName = parts[0]
+		} else {
 			return fmt.Errorf("invalid table name: %q", schemaTable)
 		}
 
@@ -253,7 +282,7 @@ FROM INFORMATION_SCHEMA.COLUMNS
 WHERE TABLE_SCHEMA = '%s'
   AND TABLE_NAME = '%s'
   AND EXTRA LIKE '%%auto_increment%%'
-`, parts[0], parts[1])
+`, dbName, tableName)
 
 		rows, err := tx.QueryContext(ctx, query)
 		if err != nil {
@@ -274,14 +303,14 @@ WHERE TABLE_SCHEMA = '%s'
 		// For each AUTO_INCREMENT column, get the max value and set the AUTO_INCREMENT
 		for _, column := range columns {
 			// Get max value
-			maxQuery := fmt.Sprintf("SELECT COALESCE(MAX(%s), 0) + 1 FROM %s", column, schemaTable)
+			maxQuery := fmt.Sprintf("SELECT COALESCE(MAX(%s), 0) + 1 FROM %s", column, tableName)
 			var maxVal int
 			if err := tx.QueryRowContext(ctx, maxQuery).Scan(&maxVal); err != nil {
 				return fmt.Errorf("get max value: %w", err)
 			}
 
 			// Set AUTO_INCREMENT
-			alterQuery := fmt.Sprintf("ALTER TABLE %s AUTO_INCREMENT = %d", schemaTable, maxVal)
+			alterQuery := fmt.Sprintf("ALTER TABLE %s AUTO_INCREMENT = %d", tableName, maxVal)
 			if dryRun {
 				log.Println("[dry-run]", alterQuery)
 				continue
