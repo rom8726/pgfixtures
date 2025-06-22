@@ -1,13 +1,14 @@
 # pgfixtures
 
-A Go library and CLI tool for loading fixtures into a PostgreSQL database with dynamic value support.
+A Go library and CLI tool for loading fixtures into PostgreSQL and MySQL databases with dynamic value support.
 
-`pgfixtures` is a library and CLI tool for loading test data (fixtures) into PostgreSQL databases.
+`pgfixtures` is a library and CLI tool for loading test data (fixtures) into databases.
 It's useful for setting up test environments in integration tests.
 
 ## Features
 
 - Load data from YAML files
+- Support for both PostgreSQL and MySQL databases
 - Support dynamic values through `$eval()` for executing SQL queries
 - Automatic table cleanup before loading (optional)
 - Reset sequences after loading (optional)
@@ -29,29 +30,59 @@ go get github.com/rom8726/pgfixtures
 pgfixtures load \
   --file fixtures.yml \
   --db "postgres://user:password@localhost:5432/dbname?sslmode=disable" \
+  --db-type postgres \
   --truncate \
   --reset-seq
 ```
+
+For MySQL:
+```bash
+pgfixtures load \
+  --file fixtures.yml \
+  --db "user:password@tcp(localhost:3306)/dbname" \
+  --db-type mysql \
+  --truncate \
+  --reset-seq
+```
+
 Flags:
 - `--file, -f`: path to YAML fixtures file (default: fixtures.yml)
-- `--db`: PostgreSQL connection string (required)
+- `--db`: database connection string (required)
+- `--db-type`: database type (postgres or mysql, default: postgres)
 - `--truncate`: clean tables before loading (default: true)
 - `--reset-seq`: reset sequences after loading (default: true)
 - `--dry-run`: show planned changes without executing them
 
 ### As a Library
 ```go
-import "github.com/rom8726/pgfixtures"
+import (
+    "github.com/rom8726/pgfixtures"
+    "github.com/rom8726/pgfixtures/internal/db"
+)
 
-cfg := &pgfixtures.Config{
-    FilePath: "fixtures.yml",
-    ConnStr:  "postgres://user:password@localhost:5432/dbname?sslmode=disable",
-    Truncate: true,
-    ResetSeq: true,
-    DryRun:   false,
+// For PostgreSQL
+pgCfg := &pgfixtures.Config{
+    FilePath:     "fixtures.yml",
+    ConnStr:      "postgres://user:password@localhost:5432/dbname?sslmode=disable",
+    DatabaseType: db.PostgreSQL, // Default if not specified
+    Truncate:     true,
+    ResetSeq:     true,
+    DryRun:       false,
 }
 
-err := pgfixtures.Load(cfg)
+err := pgfixtures.Load(context.Background(), pgCfg)
+
+// For MySQL
+myCfg := &pgfixtures.Config{
+    FilePath:     "fixtures.yml",
+    ConnStr:      "user:password@tcp(localhost:3306)/dbname",
+    DatabaseType: db.MySQL,
+    Truncate:     true,
+    ResetSeq:     true,
+    DryRun:       false,
+}
+
+err = pgfixtures.Load(context.Background(), myCfg)
 ```
 
 ## Fixture Format
@@ -94,6 +125,6 @@ Example of proper table ordering:
 
 ## Limitations
 
-- PostgreSQL support only
 - SQL queries in `$eval()` must return exactly one value
 - Loading order is determined automatically based on foreign keys
+- MySQL support is new and may have some edge cases not fully covered

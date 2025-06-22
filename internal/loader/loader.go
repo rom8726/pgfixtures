@@ -4,12 +4,33 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"regexp"
 	"strings"
 
 	"github.com/rom8726/pgfixtures/internal/db"
 	"github.com/rom8726/pgfixtures/internal/parser"
 )
+
+// Regular expression to match PostgreSQL interval syntax
+// Example: "INTERVAL '1 day'" -> "INTERVAL 1 DAY"
+var intervalRegex = regexp.MustCompile(`INTERVAL\s+'(\d+)\s+([^']+)'`)
+
+// convertIntervalSyntax converts PostgreSQL interval syntax to MySQL syntax
+func convertIntervalSyntax(expr string) string {
+	return intervalRegex.ReplaceAllStringFunc(expr, func(match string) string {
+		// Extract the number and unit from the interval
+		parts := intervalRegex.FindStringSubmatch(match)
+		if len(parts) != 3 {
+			return match // Return the original if no match
+		}
+
+		number := parts[1]
+		unit := strings.ToUpper(parts[2])
+
+		// Return the MySQL syntax
+		return fmt.Sprintf("INTERVAL %s %s", number, unit)
+	})
+}
 
 type LoaderConfig struct {
 	FilePath string
@@ -19,8 +40,9 @@ type LoaderConfig struct {
 }
 
 type Loader struct {
-	DB     *sql.DB
-	Config LoaderConfig
+	DB       *sql.DB
+	Config   LoaderConfig
+	Database db.Database
 }
 
 func (l *Loader) Load(ctx context.Context) error {
@@ -34,7 +56,7 @@ func (l *Loader) Load(ctx context.Context) error {
 		tables = append(tables, t)
 	}
 
-	deps, err := db.GetDependencyGraph(ctx, l.DB)
+	deps, err := l.Database.GetDependencyGraph(ctx, l.DB)
 	if err != nil {
 		return err
 	}
@@ -82,84 +104,32 @@ func (l *Loader) Load(ctx context.Context) error {
 }
 
 func (l *Loader) truncateTables(ctx context.Context, tx *sql.Tx, tables []string) error {
-	query := "TRUNCATE " + strings.Join(tables, ", ") + " RESTART IDENTITY CASCADE"
-	if l.Config.DryRun {
-		log.Println("[dry-run]", query)
-
-		return nil
-	}
-
-	_, err := tx.ExecContext(ctx, query)
-
-	return err
+	return l.Database.TruncateTables(ctx, tx, tables, l.Config.DryRun)
 }
 
 func (l *Loader) insertRow(ctx context.Context, tx *sql.Tx, table string, row map[string]any) error {
-	var cols []string
-	var vals []any
-	var ph []string
-
+	// Process $eval expressions
+	processedRow := make(map[string]any)
 	for col, val := range row {
 		if expr, ok := parser.IsEval(val); ok {
+			// Check if we need to convert PostgreSQL interval syntax to MySQL syntax
+			_, isMySQL := l.Database.(*db.MySQLDatabase)
+			if isMySQL {
+				// Convert PostgreSQL interval syntax to MySQL syntax
+				// Example: "SELECT NOW() - INTERVAL '1 day'" -> "SELECT NOW() - INTERVAL 1 DAY"
+				expr = convertIntervalSyntax(expr)
+			}
+
 			if err := tx.QueryRowContext(ctx, expr).Scan(&val); err != nil {
 				return fmt.Errorf("eval %q: %w", expr, err)
 			}
 		}
-
-		cols = append(cols, col)
-		vals = append(vals, val)
-		ph = append(ph, fmt.Sprintf("$%d", len(vals)))
+		processedRow[col] = val
 	}
 
-	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
-		table,
-		strings.Join(cols, ", "),
-		strings.Join(ph, ", "),
-	)
-
-	if l.Config.DryRun {
-		log.Printf("[dry-run] %s :: %v", query, vals)
-
-		return nil
-	}
-
-	_, err := tx.ExecContext(ctx, query, vals...)
-
-	return err
+	return l.Database.InsertRow(ctx, tx, table, processedRow, l.Config.DryRun)
 }
 
 func (l *Loader) resetSequences(ctx context.Context, tx *sql.Tx, tables []string) error {
-	for _, schemaTable := range tables {
-		parts := strings.Split(schemaTable, ".")
-		if len(parts) != 2 {
-			return fmt.Errorf("invalid table name: %q", schemaTable)
-		}
-
-		query := fmt.Sprintf(`
-DO $$
-DECLARE
-    r record;
-BEGIN
-    FOR r IN
-        SELECT column_default, column_name FROM information_schema.columns
-        WHERE table_schema = '%s' AND table_name = '%s' AND column_default LIKE 'nextval%%'
-    LOOP
-        EXECUTE format('SELECT setval(pg_get_serial_sequence(''%s'', ''%s''), COALESCE(MAX(%s), 0)) FROM %s',
-            r.column_name, r.column_name, r.column_name, '%s');
-    END LOOP;
-END$$;
-`, parts[0], parts[1], schemaTable, "%s", "%s", schemaTable, schemaTable)
-
-		if l.Config.DryRun {
-			log.Println("[dry-run]", query)
-
-			continue
-		}
-
-		if _, err := tx.ExecContext(ctx, query); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return l.Database.ResetSequences(ctx, tx, tables, l.Config.DryRun)
 }
