@@ -44,7 +44,7 @@ type orderProduct struct {
 	Price     float64
 }
 
-func TestLoadPostgreSQL(t *testing.T) {
+func TestLoadPostgreSQL__simple_one_file(t *testing.T) {
 	ctx := context.Background()
 
 	postgresContainer, err := postgres.Run(ctx,
@@ -189,7 +189,7 @@ func TestLoadPostgreSQL(t *testing.T) {
 	}
 }
 
-func TestLoadMySQL(t *testing.T) {
+func TestLoadMySQL__simple_one_file(t *testing.T) {
 	ctx := context.Background()
 
 	// Start a MySQL container
@@ -223,7 +223,7 @@ func TestLoadMySQL(t *testing.T) {
 	port, err := mysqlContainer.MappedPort(ctx, "3306/tcp")
 	require.NoError(t, err)
 
-	// Create connection string with multiStatements=true to allow executing multiple statements at once
+	// Create a connection string with multiStatements=true to allow executing multiple statements at once
 	// Use root user to ensure we have all necessary privileges
 	// Add parseTime=true to convert MySQL timestamps to time.Time
 	connStr := fmt.Sprintf("root:password@tcp(%s:%s)/db?multiStatements=true&parseTime=true", host, port.Port())
@@ -321,7 +321,7 @@ func TestLoadMySQL(t *testing.T) {
 		require.InEpsilon(t, expected.Price, products[i].Price, 0.0001)
 	}
 
-	// check orders2products
+	// check orders products
 	rows, err = db.Query("SELECT order_id, product_id, quantity, price FROM orders2products ORDER BY order_id, product_id")
 	require.NoError(t, err)
 	defer rows.Close()
