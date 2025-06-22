@@ -20,7 +20,7 @@ type TemplateDef struct {
 	Fields  map[string]any `yaml:"fields"`
 }
 
-type AllTemplates map[string]map[string]TemplateDef // table -> name -> TemplateDef
+type AllTemplates map[string]map[string]TemplateDef
 
 type rawFixtureFile struct {
 	Include   any            `yaml:"include"`
@@ -78,7 +78,7 @@ func parseFileWithTemplatesV2(path string, visited map[string]bool) (Fixtures, A
 	result := Fixtures{}
 	allTemplates := AllTemplates{}
 
-	// 1. Обрабатываем include
+	// 1. Process include
 	if raw.Include != nil {
 		var includes []string
 		switch v := raw.Include.(type) {
@@ -114,7 +114,7 @@ func parseFileWithTemplatesV2(path string, visited map[string]bool) (Fixtures, A
 		}
 	}
 
-	// 2. Собираем шаблоны из текущего файла
+	// 2. Collect templates from the current file
 	for _, tmpl := range raw.Templates {
 		table := tmpl.Table
 		if tmpl.Fields == nil {
@@ -126,7 +126,7 @@ func parseFileWithTemplatesV2(path string, visited map[string]bool) (Fixtures, A
 		allTemplates[table][tmpl.Name] = tmpl
 	}
 
-	// 3. Собираем обычные таблицы
+	// 3. Collect regular tables
 	for key, val := range raw.Fixtures {
 		if key == "templates" {
 			continue

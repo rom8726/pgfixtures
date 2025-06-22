@@ -155,6 +155,60 @@ public.users:
 
 If a row does not have an `id` field, it is simply appended.
 
+### Row Templates and Inheritance (`templates` / `extends`)
+
+You can define reusable row templates and inherit from them using the `templates` section and the `extends` key. This allows you to describe common fields once and inherit them in other rows, overriding only the necessary values.
+
+**Example:**
+```yaml
+public.users:
+  templates:
+    - table: public.users
+      name: base
+      fields:
+        is_admin: false
+        super: false
+    - table: public.users
+      name: admin
+      extends: base
+      fields:
+        is_admin: true
+    - table: public.users
+      name: superadmin
+      extends: admin
+      fields:
+        super: true
+  # regular rows
+  - id: 1
+    name: "Base User"
+    email: "user1@example.com"
+    extends: base
+  - id: 2
+    name: "Admin User"
+    email: "admin@example.com"
+    extends: admin
+  - id: 3
+    name: "Super Admin"
+    email: "superadmin@example.com"
+    extends: superadmin
+  - id: 4
+    name: "NoTemplate"
+    email: "notemplate@example.com"
+```
+
+**How it works:**
+- The `templates` section defines templates with a unique `name` and (optionally) an `extends` key for inheritance.
+- In regular rows, you can specify `extends: <template_name>` to inherit all fields from the template (and its parents), overriding only the necessary fields.
+- Inheritance can be multi-level (extends a chain).
+- If a field is present in both the template and the row, the row value takes precedence.
+- Cyclic inheritance is detected and prevented.
+
+**Resulting rows:**
+- id: 1 — will get all fields from the `base` template
+- id: 2 — from `admin` (i.e., both `base` and `admin`)
+- id: 3 — from `superadmin` (i.e., all three templates)
+- id: 4 — only explicitly specified fields
+
 ### Table Loading Order
 
 The loading order is automatically determined based on foreign key dependencies. This ensures that referenced records exist before dependent records are inserted.

@@ -1,7 +1,7 @@
 CREATE TABLE users (
     id INT NOT NULL AUTO_INCREMENT,
     name TEXT NOT NULL,
-    email TEXT,
+    email VARCHAR(255) UNIQUE,
     is_admin BOOLEAN,
     super BOOLEAN,
     last_login_at TIMESTAMP NULL,
