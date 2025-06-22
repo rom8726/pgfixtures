@@ -1,14 +1,17 @@
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
+    email TEXT UNIQUE,
+    is_admin BOOLEAN,
+    super BOOL,
     last_login_at TIMESTAMP,
-    created_at TIMESTAMP NOT NULL
+    created_at TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS orders (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at TIMESTAMP NOT NULL
+    created_at TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS products (

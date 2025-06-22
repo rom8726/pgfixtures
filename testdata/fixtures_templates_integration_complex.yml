@@ -1,0 +1,71 @@
+include:
+  - fixtures_templates_integration_base.yml
+
+templates:
+  - table: public.users
+    name: superadmin
+    extends: admin
+    fields:
+      name: "Super Admin"
+      is_admin: true
+      super: true
+  - table: public.products
+    name: phone
+    fields:
+      name: "Phone"
+      price: 399.99
+  - table: public.products
+    name: bread
+    fields:
+      name: "Bread"
+      price: 1.80
+  - table: public.orders
+    name: order1
+    fields:
+      user_id: 1
+      created_at: $eval(SELECT NOW())
+  - table: public.orders
+    name: order2
+    fields:
+      user_id: 2
+      created_at: $eval(SELECT NOW() - INTERVAL '1 day')
+
+public.users:
+  - id: 2
+    extends: admin
+    email: "admin@example.com"
+  - id: 3
+    extends: superadmin
+    email: "superadmin@example.com"
+  - id: 4
+    name: "NoTemplate"
+    email: "notemplate@example.com"
+
+public.products:
+  - id: 1
+    name: "Milk"
+    price: 2.50
+  - id: 2
+    extends: bread
+  - id: 3
+    extends: phone
+
+public.orders:
+  - id: 1
+    extends: order1
+  - id: 2
+    extends: order2
+
+public.orders2products:
+  - order_id: 1
+    product_id: 2
+    quantity: 2
+    price: 3.60
+  - order_id: 2
+    product_id: 1
+    quantity: 1
+    price: 2.50
+  - order_id: 2
+    product_id: 3
+    quantity: 1
+    price: 399.99 

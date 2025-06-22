@@ -1,15 +1,18 @@
 CREATE TABLE users (
     id INT NOT NULL AUTO_INCREMENT,
     name TEXT NOT NULL,
+    email VARCHAR(255) UNIQUE,
+    is_admin BOOLEAN,
+    super BOOLEAN,
     last_login_at TIMESTAMP NULL,
-    created_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP,
     PRIMARY KEY (id)
 );
 
 CREATE TABLE orders (
     id INT NOT NULL AUTO_INCREMENT,
     user_id INT NOT NULL,
-    created_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP,
     PRIMARY KEY (id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

@@ -1,0 +1,10 @@
+public.users:
+  - id: 2
+    name: AddonUser
+    email: user2@example.com
+    last_login_at: $eval(SELECT NOW())
+    created_at: $eval(SELECT NOW() - INTERVAL '2 day')
+public.products:
+  - id: 2
+    name: Bread
+    price: 1.80

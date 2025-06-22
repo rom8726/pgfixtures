@@ -1,10 +1,12 @@
 public.users:
   - id: 1
     name: User1
+    email: user1@example.com
     last_login_at: $eval(SELECT NOW())
     created_at: $eval(SELECT NOW() - INTERVAL '1 day')
   - id: 2
     name: User2
+    email: user2@example.com
     last_login_at: $eval(SELECT NOW())
     created_at: $eval(SELECT NOW() - INTERVAL '2 day')
 
