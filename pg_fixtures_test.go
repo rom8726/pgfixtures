@@ -66,6 +66,8 @@ func TestLoadPostgreSQL__simple_one_file(t *testing.T) {
 		}
 	})
 
+	time.Sleep(5 * time.Second)
+
 	connStr, err := postgresContainer.ConnectionString(ctx, "sslmode=disable")
 	require.NoError(t, err)
 
@@ -216,7 +218,7 @@ func TestLoadMySQL__simple_one_file(t *testing.T) {
 		}
 	})
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	// Get connection details
 	host, err := mysqlContainer.Host(ctx)
@@ -372,7 +374,7 @@ func TestLoadPostgreSQL__include_templates(t *testing.T) {
 		}
 	})
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	connStr, err := postgresContainer.ConnectionString(ctx, "sslmode=disable")
 	require.NoError(t, err)
@@ -468,7 +470,7 @@ func TestLoadMySQL__include_templates(t *testing.T) {
 		}
 	})
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	host, err := mysqlContainer.Host(ctx)
 	require.NoError(t, err)
@@ -541,4 +543,78 @@ func TestLoadMySQL__include_templates(t *testing.T) {
 	require.Equal(t, 3, products[2].ID)
 	require.Equal(t, "Phone", products[2].Name)
 	require.InEpsilon(t, 399.99, products[2].Price, 0.0001)
+}
+
+func TestLoadPostgreSQL__include_and_extends_templates(t *testing.T) {
+	ctx := context.Background()
+
+	postgresContainer, err := postgres.Run(ctx,
+		"postgres:16",
+		postgres.WithDatabase("db"),
+		postgres.WithUsername("user"),
+		postgres.WithPassword("password"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(5*time.Second),
+		),
+	)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		if err := postgresContainer.Terminate(ctx); err != nil {
+			t.Fatalf("failed to terminate container: %s", err)
+		}
+	})
+
+	time.Sleep(5 * time.Second)
+
+	connStr, err := postgresContainer.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+
+	cfg := &Config{
+		FilePath:     "testdata/fixtures_templates_integration_main.yml",
+		ConnStr:      connStr,
+		DatabaseType: PostgreSQL,
+		Truncate:     true,
+		ResetSeq:     true,
+		DryRun:       false,
+	}
+
+	migrationSQL, err := os.ReadFile("testdata/migration_postgresql.sql")
+	require.NoError(t, err, "read migrations")
+
+	db, err := sql.Open("postgres", cfg.ConnStr)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	_, err = db.Exec(string(migrationSQL))
+	require.NoError(t, err, "apply migrations")
+
+	require.NoError(t, Load(context.Background(), cfg), "load fixtures")
+
+	rows, err := db.Query("SELECT id, name, email, is_admin, super FROM users ORDER BY id")
+	require.NoError(t, err)
+	defer rows.Close()
+
+	type user struct {
+		ID      int
+		Name    string
+		Email   string
+		IsAdmin sql.NullBool
+		Super   sql.NullBool
+	}
+	var users []user
+	for rows.Next() {
+		var u user
+		require.NoError(t, rows.Scan(&u.ID, &u.Name, &u.Email, &u.IsAdmin, &u.Super))
+		users = append(users, u)
+	}
+	require.NoError(t, rows.Err())
+	require.Len(t, users, 4)
+
+	require.Equal(t, user{ID: 1, Name: "Base User", Email: "user1@example.com"}, users[0])
+	require.Equal(t, user{ID: 2, Name: "Admin User", Email: "admin@example.com", IsAdmin: sql.NullBool{Bool: true, Valid: true}}, users[1])
+	require.Equal(t, user{ID: 3, Name: "Super Admin", Email: "superadmin@example.com", IsAdmin: sql.NullBool{Bool: true, Valid: true}, Super: sql.NullBool{Bool: true, Valid: true}}, users[2])
+	require.Equal(t, user{ID: 4, Name: "NoTemplate", Email: "notemplate@example.com"}, users[3])
 }

@@ -1,0 +1,17 @@
+templates:
+  - table: public.users
+    name: base
+    fields:
+      name: "Base User"
+      created_at: $eval(SELECT NOW())
+  - table: public.users
+    name: admin
+    extends: base
+    fields:
+      name: "Admin User"
+      is_admin: true
+
+public.users:
+  - id: 1
+    extends: base
+    email: "user1@example.com"
