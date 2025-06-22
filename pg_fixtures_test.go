@@ -162,7 +162,7 @@ func TestLoadPostgreSQL(t *testing.T) {
 		require.InEpsilon(t, expected.Price, products[i].Price, 0.0001)
 	}
 
-	// check orders2products
+	// check orders products
 	rows, err = db.Query("SELECT order_id, product_id, quantity, price FROM orders2products ORDER BY order_id, product_id")
 	require.NoError(t, err)
 	defer rows.Close()
@@ -192,7 +192,7 @@ func TestLoadPostgreSQL(t *testing.T) {
 func TestLoadMySQL(t *testing.T) {
 	ctx := context.Background()
 
-	// Start MySQL container
+	// Start a MySQL container
 	mysqlContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        "mysql:8.0",

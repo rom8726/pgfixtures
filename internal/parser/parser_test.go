@@ -39,6 +39,7 @@ public.table2:
 		{
 			name:      "empty file",
 			contents:  "",
+			expected:  Fixtures{},
 			expectErr: false,
 		},
 		{
@@ -77,4 +78,101 @@ key1: value1
 			}
 		})
 	}
+}
+
+func TestParseFileWithInclude(t *testing.T) {
+	tempDir := t.TempDir()
+
+	base := `
+public.users:
+  - id: 1
+    name: Base
+  - id: 2
+    name: Overridden
+public.products:
+  - id: 1
+    name: Milk
+`
+	_ = os.WriteFile(filepath.Join(tempDir, "base.yml"), []byte(base), 0644)
+
+	addon := `
+public.users:
+  - id: 3
+    name: Addon
+public.products:
+  - id: 2
+    name: Bread
+`
+	_ = os.WriteFile(filepath.Join(tempDir, "addon.yml"), []byte(addon), 0644)
+
+	main := `
+include:
+  - base.yml
+  - addon.yml
+public.users:
+  - id: 2
+    name: OverriddenMain
+  - id: 4
+    name: Main
+`
+	_ = os.WriteFile(filepath.Join(tempDir, "main.yml"), []byte(main), 0644)
+
+	fixtures, err := ParseFileWithInclude(filepath.Join(tempDir, "main.yml"), map[string]bool{})
+	require.NoError(t, err)
+	require.Equal(t, []map[string]any{
+		{"id": 1, "name": "Base"},
+		{"id": 2, "name": "Overridden"},
+		{"id": 3, "name": "Addon"},
+		{"id": 2, "name": "OverriddenMain"},
+		{"id": 4, "name": "Main"},
+	}, fixtures["public.users"])
+	require.Equal(t, []map[string]any{
+		{"id": 1, "name": "Milk"},
+		{"id": 2, "name": "Bread"},
+	}, fixtures["public.products"])
+}
+
+func TestParseFileWithInclude_Nested(t *testing.T) {
+	d := t.TempDir()
+	_ = os.WriteFile(filepath.Join(d, "base.yml"), []byte(`public.users:
+  - id: 1
+    name: Base`), 0644)
+	_ = os.WriteFile(filepath.Join(d, "mid.yml"), []byte(`include: base.yml
+public.users:
+  - id: 2
+    name: Mid`), 0644)
+	_ = os.WriteFile(filepath.Join(d, "main.yml"), []byte(`include: mid.yml
+public.users:
+  - id: 3
+    name: Main`), 0644)
+	fixtures, err := ParseFileWithInclude(filepath.Join(d, "main.yml"), map[string]bool{})
+	require.NoError(t, err)
+	require.Equal(t, []map[string]any{
+		{"id": 1, "name": "Base"},
+		{"id": 2, "name": "Mid"},
+		{"id": 3, "name": "Main"},
+	}, fixtures["public.users"])
+}
+
+func TestParseFileWithInclude_Cycle(t *testing.T) {
+	d := t.TempDir()
+	_ = os.WriteFile(filepath.Join(d, "a.yml"), []byte(`include: b.yml
+public.users:
+  - id: 1`), 0644)
+	_ = os.WriteFile(filepath.Join(d, "b.yml"), []byte(`include: a.yml
+public.users:
+  - id: 2`), 0644)
+	_, err := ParseFileWithInclude(filepath.Join(d, "a.yml"), map[string]bool{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cyclic include")
+}
+
+func TestParseFileWithInclude_EmptyInclude(t *testing.T) {
+	d := t.TempDir()
+	_ = os.WriteFile(filepath.Join(d, "main.yml"), []byte(`include: []
+public.users:
+  - id: 1`), 0644)
+	fixtures, err := ParseFileWithInclude(filepath.Join(d, "main.yml"), map[string]bool{})
+	require.NoError(t, err)
+	require.Equal(t, []map[string]any{{"id": 1}}, fixtures["public.users"])
 }
