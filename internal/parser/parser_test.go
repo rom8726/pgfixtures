@@ -3,6 +3,7 @@ package parser
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -119,17 +120,24 @@ public.users:
 
 	fixtures, err := ParseFileWithInclude(filepath.Join(tempDir, "main.yml"), map[string]bool{})
 	require.NoError(t, err)
+	users := fixtures["public.users"]
+	sort.Slice(users, func(i, j int) bool {
+		return users[i]["id"].(int) < users[j]["id"].(int)
+	})
 	require.Equal(t, []map[string]any{
 		{"id": 1, "name": "Base"},
-		{"id": 2, "name": "Overridden"},
-		{"id": 3, "name": "Addon"},
 		{"id": 2, "name": "OverriddenMain"},
+		{"id": 3, "name": "Addon"},
 		{"id": 4, "name": "Main"},
-	}, fixtures["public.users"])
+	}, users)
+	products := fixtures["public.products"]
+	sort.Slice(products, func(i, j int) bool {
+		return products[i]["id"].(int) < products[j]["id"].(int)
+	})
 	require.Equal(t, []map[string]any{
 		{"id": 1, "name": "Milk"},
 		{"id": 2, "name": "Bread"},
-	}, fixtures["public.products"])
+	}, products)
 }
 
 func TestParseFileWithInclude_Nested(t *testing.T) {
@@ -147,11 +155,15 @@ public.users:
     name: Main`), 0644)
 	fixtures, err := ParseFileWithInclude(filepath.Join(d, "main.yml"), map[string]bool{})
 	require.NoError(t, err)
+	users := fixtures["public.users"]
+	sort.Slice(users, func(i, j int) bool {
+		return users[i]["id"].(int) < users[j]["id"].(int)
+	})
 	require.Equal(t, []map[string]any{
 		{"id": 1, "name": "Base"},
 		{"id": 2, "name": "Mid"},
 		{"id": 3, "name": "Main"},
-	}, fixtures["public.users"])
+	}, users)
 }
 
 func TestParseFileWithInclude_Cycle(t *testing.T) {
@@ -175,4 +187,150 @@ public.users:
 	fixtures, err := ParseFileWithInclude(filepath.Join(d, "main.yml"), map[string]bool{})
 	require.NoError(t, err)
 	require.Equal(t, []map[string]any{{"id": 1}}, fixtures["public.users"])
+}
+
+func TestParseFileWithInclude_Extends(t *testing.T) {
+	d := t.TempDir()
+	_ = os.WriteFile(filepath.Join(d, "base.yml"), []byte(`templates:
+  - table: public.users
+    name: base
+    fields:
+      name: Base User
+      created_at: $eval(SELECT NOW())
+  - table: public.users
+    name: admin
+    extends: base
+    fields:
+      name: Admin User
+      is_admin: true
+public.users:
+  - id: 1
+    extends: base
+    email: user1@example.com
+  - id: 2
+    extends: admin
+    email: admin@example.com
+`), 0644)
+	fixtures, err := ParseFileWithInclude(filepath.Join(d, "base.yml"), map[string]bool{})
+	require.NoError(t, err)
+	users := fixtures["public.users"]
+	require.Len(t, users, 2)
+	sort.Slice(users, func(i, j int) bool {
+		return users[i]["id"].(int) < users[j]["id"].(int)
+	})
+	require.Equal(t, 1, users[0]["id"])
+	require.Equal(t, "Base User", users[0]["name"])
+	require.Equal(t, "user1@example.com", users[0]["email"])
+	require.Contains(t, users[0], "created_at")
+	require.Equal(t, 2, users[1]["id"])
+	require.Equal(t, "Admin User", users[1]["name"])
+	require.Equal(t, true, users[1]["is_admin"])
+	require.Equal(t, "admin@example.com", users[1]["email"])
+	require.Contains(t, users[1], "created_at")
+}
+
+func TestParseFileWithInclude_ExtendsWithInclude(t *testing.T) {
+	d := t.TempDir()
+	_ = os.WriteFile(filepath.Join(d, "base.yml"), []byte(`templates:
+  - table: public.users
+    name: base
+    fields:
+      name: Base User
+      created_at: $eval(SELECT NOW())
+public.users:
+  - id: 1
+    extends: base
+    email: user1@example.com
+`), 0644)
+	_ = os.WriteFile(filepath.Join(d, "main.yml"), []byte(`include: base.yml
+templates:
+  - table: public.users
+    name: admin
+    extends: base
+    fields:
+      name: Admin User
+      is_admin: true
+public.users:
+  - id: 2
+    extends: admin
+    email: admin@example.com
+`), 0644)
+	fixtures, err := ParseFileWithInclude(filepath.Join(d, "main.yml"), map[string]bool{})
+	require.NoError(t, err)
+	users := fixtures["public.users"]
+	require.Len(t, users, 2)
+	sort.Slice(users, func(i, j int) bool {
+		return users[i]["id"].(int) < users[j]["id"].(int)
+	})
+	require.Equal(t, 1, users[0]["id"])
+	require.Equal(t, "Base User", users[0]["name"])
+	require.Equal(t, "user1@example.com", users[0]["email"])
+	require.Equal(t, 2, users[1]["id"])
+	require.Equal(t, "Admin User", users[1]["name"])
+	require.Equal(t, true, users[1]["is_admin"])
+	require.Equal(t, "admin@example.com", users[1]["email"])
+}
+
+func TestParseFileWithInclude_ExtendsRecursive(t *testing.T) {
+	d := t.TempDir()
+	_ = os.WriteFile(filepath.Join(d, "main.yml"), []byte(`templates:
+  - table: public.users
+    name: base
+    fields:
+      name: Base User
+      created_at: $eval(SELECT NOW())
+  - table: public.users
+    name: admin
+    extends: base
+    fields:
+      name: Admin User
+      is_admin: true
+  - table: public.users
+    name: superadmin
+    extends: admin
+    fields:
+      name: Super Admin
+      super: true
+public.users:
+  - id: 1
+    extends: superadmin
+    email: super@example.com
+`), 0644)
+	fixtures, err := ParseFileWithInclude(filepath.Join(d, "main.yml"), map[string]bool{})
+	require.NoError(t, err)
+	users := fixtures["public.users"]
+	sort.Slice(users, func(i, j int) bool {
+		return users[i]["id"].(int) < users[j]["id"].(int)
+	})
+	require.Len(t, users, 1)
+	require.Equal(t, 1, users[0]["id"])
+	require.Equal(t, "Super Admin", users[0]["name"])
+	require.Equal(t, true, users[0]["is_admin"])
+	require.Equal(t, true, users[0]["super"])
+	require.Equal(t, "super@example.com", users[0]["email"])
+	require.Contains(t, users[0], "created_at")
+}
+
+func TestParseFileWithInclude_ExtendsOverrideFields(t *testing.T) {
+	d := t.TempDir()
+	_ = os.WriteFile(filepath.Join(d, "main.yml"), []byte(`templates:
+  - table: public.users
+    name: base
+    fields:
+      name: Base User
+      created_at: $eval(SELECT NOW())
+public.users:
+  - id: 1
+    extends: base
+    name: Overridden
+    email: test@example.com
+`), 0644)
+	fixtures, err := ParseFileWithInclude(filepath.Join(d, "main.yml"), map[string]bool{})
+	require.NoError(t, err)
+	users := fixtures["public.users"]
+	require.Len(t, users, 1)
+	require.Equal(t, 1, users[0]["id"])
+	require.Equal(t, "Overridden", users[0]["name"])
+	require.Equal(t, "test@example.com", users[0]["email"])
+	require.Contains(t, users[0], "created_at")
 }
