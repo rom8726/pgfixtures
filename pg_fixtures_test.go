@@ -55,7 +55,7 @@ func TestLoadPostgreSQL__simple_one_file(t *testing.T) {
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(2).
-				WithStartupTimeout(5*time.Second),
+				WithStartupTimeout(15*time.Second),
 		),
 	)
 	require.NoError(t, err)
@@ -216,6 +216,8 @@ func TestLoadMySQL__simple_one_file(t *testing.T) {
 		}
 	})
 
+	time.Sleep(10 * time.Second)
+
 	// Get connection details
 	host, err := mysqlContainer.Host(ctx)
 	require.NoError(t, err)
@@ -346,4 +348,197 @@ func TestLoadMySQL__simple_one_file(t *testing.T) {
 		require.Equal(t, expected.Quantity, orderProducts[i].Quantity)
 		require.InEpsilon(t, expected.Price, orderProducts[i].Price, 0.0001)
 	}
+}
+
+func TestLoadPostgreSQL__include_templates(t *testing.T) {
+	ctx := context.Background()
+
+	postgresContainer, err := postgres.Run(ctx,
+		"postgres:16",
+		postgres.WithDatabase("db"),
+		postgres.WithUsername("user"),
+		postgres.WithPassword("password"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(15*time.Second),
+		),
+	)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		if err := postgresContainer.Terminate(ctx); err != nil {
+			t.Fatalf("failed to terminate container: %s", err)
+		}
+	})
+
+	time.Sleep(10 * time.Second)
+
+	connStr, err := postgresContainer.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+
+	cfg := &Config{
+		FilePath:     "testdata/fixtures_include_main.yml",
+		ConnStr:      connStr,
+		DatabaseType: PostgreSQL,
+		Truncate:     true,
+		ResetSeq:     true,
+		DryRun:       false,
+	}
+
+	migrationSQL, err := os.ReadFile("testdata/migration_postgresql.sql")
+	require.NoError(t, err, "read migrations")
+
+	db, err := sql.Open("postgres", cfg.ConnStr)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	_, err = db.Exec(string(migrationSQL))
+	require.NoError(t, err, "apply migrations")
+
+	require.NoError(t, Load(context.Background(), cfg), "load fixtures")
+
+	rows, err := db.Query("SELECT id, name FROM users ORDER BY id")
+	require.NoError(t, err)
+	defer rows.Close()
+
+	var users []user
+	for rows.Next() {
+		var u user
+		require.NoError(t, rows.Scan(&u.ID, &u.Name))
+		users = append(users, u)
+	}
+	require.NoError(t, rows.Err())
+	require.Len(t, users, 3)
+	require.Equal(t, 1, users[0].ID)
+	require.Equal(t, "BaseUser", users[0].Name)
+	require.Equal(t, 2, users[1].ID)
+	require.Equal(t, "OverriddenUser", users[1].Name)
+	require.Equal(t, 3, users[2].ID)
+	require.Equal(t, "MainUser", users[2].Name)
+
+	rows, err = db.Query("SELECT id, name, price FROM products ORDER BY id")
+	require.NoError(t, err)
+	defer rows.Close()
+
+	var products []product
+	for rows.Next() {
+		var p product
+		require.NoError(t, rows.Scan(&p.ID, &p.Name, &p.Price))
+		products = append(products, p)
+	}
+	require.NoError(t, rows.Err())
+	require.Len(t, products, 3)
+	require.Equal(t, 1, products[0].ID)
+	require.Equal(t, "Milk", products[0].Name)
+	require.InEpsilon(t, 2.50, products[0].Price, 0.0001)
+
+	require.Equal(t, 2, products[1].ID)
+	require.Equal(t, "Bread", products[1].Name)
+	require.InEpsilon(t, 1.80, products[1].Price, 0.0001)
+
+	require.Equal(t, 3, products[2].ID)
+	require.Equal(t, "Phone", products[2].Name)
+	require.InEpsilon(t, 399.99, products[2].Price, 0.0001)
+}
+
+func TestLoadMySQL__include_templates(t *testing.T) {
+	ctx := context.Background()
+
+	mysqlContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			Image:        "mysql:8.0",
+			ExposedPorts: []string{"3306/tcp"},
+			Env: map[string]string{
+				"MYSQL_ROOT_PASSWORD": "password",
+				"MYSQL_DATABASE":      "db",
+				"MYSQL_USER":          "user",
+				"MYSQL_PASSWORD":      "password",
+			},
+			WaitingFor: wait.ForLog("port: 3306  MySQL Community Server").
+				WithStartupTimeout(30 * time.Second),
+		},
+		Started: true,
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		if err := mysqlContainer.Terminate(ctx); err != nil {
+			t.Fatalf("failed to terminate container: %s", err)
+		}
+	})
+
+	time.Sleep(10 * time.Second)
+
+	host, err := mysqlContainer.Host(ctx)
+	require.NoError(t, err)
+
+	port, err := mysqlContainer.MappedPort(ctx, "3306/tcp")
+	require.NoError(t, err)
+
+	connStr := fmt.Sprintf("root:password@tcp(%s:%s)/db?multiStatements=true&parseTime=true", host, port.Port())
+
+	cfg := &Config{
+		FilePath:     "testdata/fixtures_include_main.yml",
+		ConnStr:      connStr,
+		DatabaseType: MySQL,
+		Truncate:     true,
+		ResetSeq:     true,
+		DryRun:       false,
+	}
+
+	migrationSQL, err := os.ReadFile("testdata/migration_mysql.sql")
+	require.NoError(t, err, "read migrations")
+
+	db, err := sql.Open("mysql", cfg.ConnStr)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	_, err = db.Exec(string(migrationSQL))
+	require.NoError(t, err, "apply migrations")
+
+	require.NoError(t, Load(context.Background(), cfg), "load fixtures")
+
+	rows, err := db.Query("SELECT id, name FROM users ORDER BY id")
+	require.NoError(t, err)
+	defer rows.Close()
+
+	var users []user
+	for rows.Next() {
+		var u user
+		require.NoError(t, rows.Scan(&u.ID, &u.Name))
+		users = append(users, u)
+	}
+	require.NoError(t, rows.Err())
+	require.Len(t, users, 3)
+	require.Equal(t, 1, users[0].ID)
+	require.Equal(t, "BaseUser", users[0].Name)
+	require.Equal(t, 2, users[1].ID)
+	require.Equal(t, "OverriddenUser", users[1].Name)
+	require.Equal(t, 3, users[2].ID)
+	require.Equal(t, "MainUser", users[2].Name)
+
+	rows, err = db.Query("SELECT id, name, price FROM products ORDER BY id")
+	require.NoError(t, err)
+	defer rows.Close()
+
+	var products []product
+	for rows.Next() {
+		var p product
+		require.NoError(t, rows.Scan(&p.ID, &p.Name, &p.Price))
+		products = append(products, p)
+	}
+	require.NoError(t, rows.Err())
+	require.Len(t, products, 3)
+	require.Equal(t, 1, products[0].ID)
+	require.Equal(t, "Milk", products[0].Name)
+	require.InEpsilon(t, 2.50, products[0].Price, 0.0001)
+
+	require.Equal(t, 2, products[1].ID)
+	require.Equal(t, "Bread", products[1].Name)
+	require.InEpsilon(t, 1.80, products[1].Price, 0.0001)
+
+	require.Equal(t, 3, products[2].ID)
+	require.Equal(t, "Phone", products[2].Name)
+	require.InEpsilon(t, 399.99, products[2].Price, 0.0001)
 }

@@ -53,22 +53,18 @@ func ParseFileWithInclude(path string, visited map[string]bool) (Fixtures, error
 			if !filepath.IsAbs(incPath) {
 				incAbs = filepath.Join(filepath.Dir(absPath), incPath)
 			}
-
 			incFixtures, err := ParseFileWithInclude(incAbs, visited)
 			if err != nil {
 				return nil, err
 			}
-
 			for table, rows := range incFixtures {
-				result[table] = append(result[table], rows...)
+				result[table] = mergeRowsByID(result[table], rows)
 			}
 		}
 	}
-
 	for table, rows := range raw.Fixtures {
-		result[table] = append(result[table], rows...)
+		result[table] = mergeRowsByID(result[table], rows)
 	}
-
 	return result, nil
 }
 
@@ -88,4 +84,29 @@ func IsEval(val any) (string, bool) {
 	}
 
 	return m[1], true
+}
+
+func mergeRowsByID(slices ...[]map[string]any) []map[string]any {
+	byID := map[any]map[string]any{}
+	var noIDRows []map[string]any
+
+	for _, rows := range slices {
+		for _, row := range rows {
+			id, hasID := row["id"]
+			if hasID {
+				byID[id] = row
+			} else {
+				noIDRows = append(noIDRows, row)
+			}
+		}
+	}
+
+	var result []map[string]any
+	for _, row := range byID {
+		result = append(result, row)
+	}
+
+	result = append(result, noIDRows...)
+
+	return result
 }

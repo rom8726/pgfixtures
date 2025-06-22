@@ -1,0 +1,9 @@
+public.users:
+  - id: 1
+    name: BaseUser
+    last_login_at: $eval(SELECT NOW())
+    created_at: $eval(SELECT NOW() - INTERVAL '3 day')
+public.products:
+  - id: 1
+    name: Milk
+    price: 2.50

@@ -1,0 +1,16 @@
+include:
+  - fixtures_base.yml
+  - fixtures_addon.yml
+public.users:
+  - id: 2
+    name: OverriddenUser
+    last_login_at: $eval(SELECT NOW())
+    created_at: $eval(SELECT NOW() - INTERVAL '1 day')
+  - id: 3
+    name: MainUser
+    last_login_at: $eval(SELECT NOW())
+    created_at: $eval(SELECT NOW())
+public.products:
+  - id: 3
+    name: Phone
+    price: 399.99
