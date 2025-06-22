@@ -14,6 +14,7 @@ It's useful for setting up test environments in integration tests.
 - Reset sequences after loading (optional)
 - Dry-run mode to preview planned changes
 - Support for foreign keys and proper loading order
+- **Fixture templates and inheritance via `include` with merge by `id`**
 
 ⚠️ **NOTE: Please, point table schema for each table in YAML fixture for correct toposort (for example, public.test)**
 
@@ -57,7 +58,6 @@ Flags:
 ```go
 import (
     "github.com/rom8726/pgfixtures"
-    "github.com/rom8726/pgfixtures/internal/db"
 )
 
 // For PostgreSQL
@@ -114,7 +114,48 @@ public.users:
     random_num: $eval(SELECT floor(random() * 100))
 ```
 
-## Table Loading Order
+### Fixture Templates, Inheritance and Merge by id
+
+You can split your fixtures into reusable templates and include them in your main fixture file using the `include` key. You can include one or multiple files:
+
+```yaml
+# base.yml
+public.users:
+  - id: 1
+    name: "Base User"
+  - id: 2
+    name: "Template User"
+
+# addon.yml
+public.users:
+  - id: 2
+    name: "Addon User"
+  - id: 3
+    name: "Addon User 2"
+
+# main.yml
+include:
+  - base.yml
+  - addon.yml
+public.users:
+  - id: 2
+    name: "Overridden User"
+  - id: 4
+    name: "Main User"
+```
+
+**How it works:**
+- All included files are merged in order.
+- For each table, rows are merged by `id` (if present): if the same `id` appears in several files, the last one wins (the main file overrides included templates).
+- As a result, in the example above, the final `public.users` will contain:
+  - id: 1, name: "Base User"
+  - id: 2, name: "Overridden User"   # from main.yml, overrides all previous
+  - id: 3, name: "Addon User 2"
+  - id: 4, name: "Main User"
+
+If a row does not have an `id` field, it is simply appended.
+
+### Table Loading Order
 
 The loading order is automatically determined based on foreign key dependencies. This ensures that referenced records exist before dependent records are inserted.
 
@@ -128,3 +169,4 @@ Example of proper table ordering:
 - SQL queries in `$eval()` must return exactly one value
 - Loading order is determined automatically based on foreign keys
 - MySQL support is new and may have some edge cases not fully covered
+- Only the `id` field is used for merging rows when using `include` (if present)
