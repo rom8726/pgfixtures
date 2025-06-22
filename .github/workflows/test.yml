@@ -38,4 +38,11 @@ jobs:
           cache: true
 
       - name: Run tests
-        run: DOCKER_HOST=unix:///var/run/docker.sock go test -tags=integration ./...
+        run: DOCKER_HOST=unix:///var/run/docker.sock go test -tags=integration -covermode atomic -coverprofile=covprofile ./...
+
+      - name: Install goveralls
+        run: go install github.com/mattn/goveralls@latest
+      - name: Send coverage
+        env:
+          COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
+        run: goveralls -coverprofile=covprofile -service=github
