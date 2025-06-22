@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 )
 
@@ -79,16 +80,17 @@ func (p *PostgresDatabase) TruncateTables(ctx context.Context, tx *sql.Tx, table
 
 // InsertRow implements Database.InsertRow for PostgreSQL
 func (p *PostgresDatabase) InsertRow(ctx context.Context, tx *sql.Tx, table string, row map[string]any, dryRun bool) error {
-	var cols []string
-	var vals []any
-	var ph []string
-
-	i := 1
-	for col, val := range row {
+	cols := make([]string, 0, len(row))
+	for col := range row {
 		cols = append(cols, col)
-		vals = append(vals, val)
-		ph = append(ph, p.Placeholder(i))
-		i++
+	}
+	sort.Strings(cols)
+
+	vals := make([]any, 0, len(row))
+	ph := make([]string, 0, len(row))
+	for i, col := range cols {
+		vals = append(vals, row[col])
+		ph = append(ph, p.Placeholder(i+1))
 	}
 
 	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
@@ -225,20 +227,21 @@ func (m *MySQLDatabase) TruncateTables(ctx context.Context, tx *sql.Tx, tables [
 
 // InsertRow implements Database.InsertRow for MySQL
 func (m *MySQLDatabase) InsertRow(ctx context.Context, tx *sql.Tx, table string, row map[string]any, dryRun bool) error {
-	var cols []string
-	var vals []any
-	var ph []string
-
 	// For MySQL, we need to strip the schema part (if any)
 	parts := strings.Split(table, ".")
 	tableName := parts[len(parts)-1] // Get the last part (table name)
 
-	i := 1
-	for col, val := range row {
+	cols := make([]string, 0, len(row))
+	for col := range row {
 		cols = append(cols, col)
-		vals = append(vals, val)
-		ph = append(ph, m.Placeholder(i))
-		i++
+	}
+	sort.Strings(cols)
+
+	vals := make([]any, 0, len(row))
+	ph := make([]string, 0, len(row))
+	for i, col := range cols {
+		vals = append(vals, row[col])
+		ph = append(ph, m.Placeholder(i+1))
 	}
 
 	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",

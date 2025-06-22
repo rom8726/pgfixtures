@@ -127,7 +127,7 @@ func TestMySQLDatabase_TruncateTables(t *testing.T) {
 }
 
 func TestPostgresDatabase_InsertRow(t *testing.T) {
-	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
@@ -143,14 +143,16 @@ func TestPostgresDatabase_InsertRow(t *testing.T) {
 	require.NoError(t, err)
 
 	// dryRun = false
-	mock.ExpectExec("INSERT INTO public.users").WithArgs(1, "test").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("INSERT INTO public.users \\(id, name\\) VALUES \\(\\$1, \\$2\\)").
+		WithArgs(1, "test").
+		WillReturnResult(sqlmock.NewResult(1, 1))
 	err = database.InsertRow(context.Background(), tx, "public.users", row, false)
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestMySQLDatabase_InsertRow(t *testing.T) {
-	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
@@ -166,7 +168,9 @@ func TestMySQLDatabase_InsertRow(t *testing.T) {
 	require.NoError(t, err)
 
 	// dryRun = false
-	mock.ExpectExec("INSERT INTO users").WithArgs(1, "test").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("INSERT INTO users \\(id, name\\) VALUES \\(\\?, \\?\\)").
+		WithArgs(1, "test").
+		WillReturnResult(sqlmock.NewResult(1, 1))
 	err = database.InsertRow(context.Background(), tx, "public.users", row, false)
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
