@@ -1,7 +1,6 @@
 # pgfixtures
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/rom8726/pgfixtures)](https://goreportcard.com/report/github.com/rom8726/pgfixtures)
-
+[![Go Reference](https://pkg.go.dev/badge/github.com/rom8726/pgfixtures.svg)](https://pkg.go.dev/github.com/rom8726/pgfixtures) [![Go Report Card](https://goreportcard.com/badge/github.com/rom8726/pgfixtures)](https://goreportcard.com/report/github.com/rom8726/pgfixtures)
 
 A Go library and CLI tool for loading fixtures into PostgreSQL and MySQL databases with dynamic value support.
 
