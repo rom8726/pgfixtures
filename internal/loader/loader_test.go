@@ -3,6 +3,8 @@ package loader
 import (
 	"context"
 	"database/sql"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -107,5 +109,58 @@ func TestLoader_InsertRow(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, m.ExpectationsWereMet())
+	mockDB.AssertExpectations(t)
+}
+
+func TestLoader_Load(t *testing.T) {
+	dir := t.TempDir()
+	fixturePath := filepath.Join(dir, "fixtures.yml")
+	fixtureData := `
+users:
+  - id: 1
+    name: "test user"
+posts:
+  - id: 1
+    title: "test post"
+    user_id: 1
+`
+	err := os.WriteFile(fixturePath, []byte(fixtureData), 0644)
+	require.NoError(t, err)
+
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	dbMock.ExpectBegin()
+	dbMock.ExpectCommit()
+
+	mockDB := &MockDatabase{}
+
+	loader := &Loader{
+		DB: db,
+		Config: LoaderConfig{
+			FilePath: fixturePath,
+			Truncate: true,
+			ResetSeq: true,
+			DryRun:   false,
+		},
+		Database: mockDB,
+	}
+
+	mockDB.On("GetDependencyGraph", mock.Anything, mock.Anything).Return(map[string][]string{
+		"posts": {"users"},
+	}, nil)
+
+	mockDB.On("TruncateTables", mock.Anything, mock.Anything, []string{"posts", "users"}, false).Return(nil)
+
+	mockDB.On("InsertRow", mock.Anything, mock.Anything, "users", mock.AnythingOfType("map[string]interface {}"), false).Return(nil)
+	mockDB.On("InsertRow", mock.Anything, mock.Anything, "posts", mock.AnythingOfType("map[string]interface {}"), false).Return(nil)
+
+	mockDB.On("ResetSequences", mock.Anything, mock.Anything, []string{"posts", "users"}, false).Return(nil)
+
+	err = loader.Load(context.Background())
+	require.NoError(t, err)
+
+	require.NoError(t, dbMock.ExpectationsWereMet())
 	mockDB.AssertExpectations(t)
 }
