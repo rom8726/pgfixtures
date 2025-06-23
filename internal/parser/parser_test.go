@@ -334,3 +334,51 @@ public.users:
 	require.Equal(t, "test@example.com", users[0]["email"])
 	require.Contains(t, users[0], "created_at")
 }
+
+func TestIsEval(t *testing.T) {
+	tests := []struct {
+		name  string
+		input any
+		expr  string
+		ok    bool
+	}{
+		{
+			name:  "valid eval",
+			input: "$eval(SELECT 1)",
+			expr:  "SELECT 1",
+			ok:    true,
+		},
+		{
+			name:  "not a string",
+			input: 123,
+			expr:  "",
+			ok:    false,
+		},
+		{
+			name:  "no eval prefix",
+			input: "SELECT 1",
+			expr:  "",
+			ok:    false,
+		},
+		{
+			name:  "malformed eval",
+			input: "$evalSELECT 1)",
+			expr:  "",
+			ok:    false,
+		},
+		{
+			name:  "empty eval",
+			input: "$eval()",
+			expr:  "",
+			ok:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expr, ok := IsEval(tt.input)
+			require.Equal(t, tt.ok, ok)
+			require.Equal(t, tt.expr, expr)
+		})
+	}
+}
