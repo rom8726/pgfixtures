@@ -4,6 +4,8 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/rom8726/pgfixtures)](https://goreportcard.com/report/github.com/rom8726/pgfixtures)
 [![Coverage Status](https://coveralls.io/repos/github/rom8726/pgfixtures/badge.svg?branch=main)](https://coveralls.io/github/rom8726/pgfixtures?branch=main)
 
+[![boosty-cozy](https://gideonwhite1029.github.io/badges/cozy-boosty_vector.svg)](https://boosty.to/dev-tools-hacker)
+
 A Go library and CLI tool for loading fixtures into PostgreSQL and MySQL databases with dynamic value support.
 
 `pgfixtures` is a library and CLI tool for loading test data (fixtures) into databases.
