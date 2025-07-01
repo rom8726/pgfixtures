@@ -3,6 +3,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/rom8726/pgfixtures.svg)](https://pkg.go.dev/github.com/rom8726/pgfixtures)
 [![Go Report Card](https://goreportcard.com/badge/github.com/rom8726/pgfixtures)](https://goreportcard.com/report/github.com/rom8726/pgfixtures)
 [![Coverage Status](https://coveralls.io/repos/github/rom8726/pgfixtures/badge.svg?branch=main)](https://coveralls.io/github/rom8726/pgfixtures?branch=main)
+[![libs.tech recommends](https://libs.tech/project/983069540/badge.svg)](https://libs.tech/project/983069540/pgfixtures)
 
 [![boosty-cozy](https://gideonwhite1029.github.io/badges/cozy-boosty_vector.svg)](https://boosty.to/dev-tools-hacker)
 
